@@ -1,0 +1,8 @@
+api:
+  image: 'node:14'
+  ports:
+    - '9898:9898'
+  volumes:
+    - '.:/home/data'
+  restart: always
+  command: node /home/data/server.js
