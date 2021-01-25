@@ -1,0 +1,17 @@
+POST http://127.0.0.1:9898/signin/
+Content-Type: application/json
+
+{
+    "username": "admin",
+    "password": "123456"
+}
+
+###
+POST http://127.0.0.1:9898/signup/
+Content-Type: application/json
+
+{
+    "username": "admin",
+    "password": "123456",
+    "email": "achotoni@gmail.com"
+}

@@ -6,19 +6,25 @@ const port = 9898
 const bodyParser = require('body-parser')
 const numCPUs = require('os').cpus().length
 const path = require('path')
+const uuid = require('uuid')
 const cors = require('cors')
+const bcrypt = require('bcrypt')
+const jwt = require('jsonwebtoken')
+const TOKEN_SECRET = "XXXXXXC4tetanku"
 
 app.use(cors())
 app.use(bodyParser.json())
-app.use(bodyParser.urlencoded({ extended: true }))
+app.use(bodyParser.urlencoded({
+    extended: true
+}))
 
 
-const host = '172.17.0.1'
+const host = 'localhost'
 const database = 'catetanku'
 var account = {
     connectionLimit: 50,
     host: host,
-    port: 3307,
+    port: 3306,
     database: database,
     user: 'root',
     password: '123456'
@@ -27,31 +33,129 @@ var account = {
 var mysql = require('mysql');
 var pool = mysql.createPool(account);
 
-//app.post('/webapi/:table', next());
-app.post('/webapi/:table/:id', function(req, res) {
+app.post('/signin/', function (req, res) {
+    var objData = {
+        username: req.body.username,
+        password: req.body.password
+    }
+    var tableName = 'users';
+    var sql = ` select id as id, COLUMN_JSON(doc) as doc from ${database}.${tableName} `;
+    pool.query(sql, function (error, results, fields) {
+        if (error) {
+            console.log(error)
+            res.status(200).end(JSON.stringify({
+                'status': 'false',
+                'message': 'Server Error'
+            }));
+        } else {
+            var userFilterred = results.find(row => {
+                row.doc = JSON.parse(row.doc)
+                return row.doc.username == objData.username
+            })
+            if (userFilterred == null) {
+                res.status(200).end(JSON.stringify({
+                    'status': 'false',
+                    'message': 'User Not Found1'
+                }));
+            } else {
+                bcrypt.compare(objData.password, userFilterred.password, (checkPassword) => {
+                    if (checkPassword) {
+                        var accessToken = generateAccessToken({
+                            username: objData.username,
+                            role: userFilterred.role
+                        })
+                        res.status(200).end(JSON.stringify({
+                            'status': 'true',
+                            'message': accessToken
+                        }));
+                    } else {
+                        res.status(200).end(JSON.stringify({
+                            'status': 'false',
+                            'message': 'User Not Found2'
+                        }));
+                    }
+                });
+            }
+        }
+    });
+});
+
+app.post('/signup/', function (req, res) {
+    var objData = {
+        username: req.body.username,
+        password: req.body.password,
+        email: req.body.email,
+        status: 'active'
+    }
+    var tableName = 'users';
+    var sql = ` select id as id, COLUMN_JSON(doc) as doc from ${database}.${tableName} 
+           WHERE COLUMN_GET(${database}.${tableName}.doc,"username" AS CHAR) = "${objData.username}"`;
+    pool.query(sql, function (error, results, fields) {
+        if (error) {
+            console.log(error)
+            res.status(200).end(JSON.stringify({
+                'status': 'false',
+                'message': 'Server Error'
+            }));
+        } else {
+            if (results.length > 0) {
+                res.status(200).end(JSON.stringify({
+                    'status': 'false',
+                    'message': 'User already taken'
+                }));
+            } else {
+                bcrypt.hash(objData.password, 10, (error, hashedPassword) => {
+                    objData.password = hashedPassword;
+                    var id = uuid.v4();
+                    var arrObj = [];
+                    Object.keys(objData).forEach(function (head) {
+                        var obj = objData[head];
+                        arrObj.push(`'${head}'`);
+                        arrObj.push(`'${obj}'`);
+                    });
+                    var sql = ` insert into ${database}.${tableName}(id, doc) values( '${id}', COLUMN_CREATE( ${arrObj.join(',') } ) ) on duplicate key update doc = VALUES(doc)  `;
+                    pool.query(sql, function (error, results, fields) {
+                        console.log(error, results)
+                        res.end(JSON.stringify({
+                            'message': JSON.stringify(results)
+                        }));
+                    });
+                });
+            }
+        }
+    });
+});
+
+app.post('/webapi/:table/:id', function (req, res) {
     var tableName = req.params.table;
     var id = req.params.id;
     var data = req.body;
     var arrObj = [];
-    Object.keys(data).forEach(function(head) {
+    Object.keys(data).forEach(function (head) {
         var obj = data[head];
         arrObj.push(`'${head}'`);
         arrObj.push(`'${obj}'`);
     });
     var sql = ` insert into ${database}.${tableName}(id, doc) values( '${id}', COLUMN_CREATE( ${arrObj.join(',') } ) ) on duplicate key update doc = VALUES(doc)  `;
-    pool.query(sql, function(error, results, fields) {
+    pool.query(sql, function (error, results, fields) {
         console.log(error, results)
-        res.end(JSON.stringify({ 'message': JSON.stringify(results) }));
+        res.end(JSON.stringify({
+            'message': JSON.stringify(results)
+        }));
     });
 });
 
-app.put('/webapi/:table/:id', function(req, res) {
+app.post('/webapi/image/:imagename', function (req, res) {
+    
+});
+
+app.put('/webapi/:table/:id', function (req, res) {
     var tableName = req.params.table;
     var id = req.params.id;
     var data = req.body;
     var arrObj = [];
     var arrDels = [];
-    Object.keys(data).forEach(function(head) {
+    Object.keys(data).forEach(function (head) {
         var obj = data[head];
         if (obj === '') {
             arrDels.push(`'${head}'`);
@@ -63,44 +167,56 @@ app.put('/webapi/:table/:id', function(req, res) {
     var sql1 = ` update ${database}.${tableName} set doc = COLUMN_ADD( doc, ${arrObj.join(',') } ) where id = '${id}'`;
     var sql2 = ` update ${database}.${tableName} set doc = COLUMN_DELETE(doc, ${arrDels.join(',') } ) where id = '${id}'`;
     //console.log(sql1, sql2)
-    pool.query(sql1, function(error, results, fields) {
+    pool.query(sql1, function (error, results, fields) {
         if (arrDels.length > 0) {
-            pool.query(sql2, function(error, results, fields) {
+            pool.query(sql2, function (error, results, fields) {
                 console.log(error, results)
-                res.end(JSON.stringify({ 'message': JSON.stringify(results) }));
+                res.end(JSON.stringify({
+                    'message': JSON.stringify(results)
+                }));
             });
         } else {
             console.log(error, results)
-            res.end(JSON.stringify({ 'message': JSON.stringify(results) }));
+            res.end(JSON.stringify({
+                'message': JSON.stringify(results)
+            }));
         }
     });
 });
 
-app.get('/webapi/query', function(req, res) {
+app.get('/webapi/query', function (req, res) {
     var tableName = req.params.table;
-    var sql = req.query.sql;
-    pool.query(sql, function(error, results, fields) {
+    var sql = decodeURIComponent( req.query.sql);
+    pool.query(sql, function (error, results, fields) {
         if (!error) {
+            console.log(results)
             if (results.length > 0) {
                 var resultObj = results.map((obj) => {
-                    obj.doc = JSON.parse(obj.doc.toString())
+                    console.log(obj.doc.toString())
+                    obj.doc = JSON.parse(obj.doc.toString().replace(/\r/, ' ').replace(/\n/, ' '))
                     return obj;
                 })
             } else {
-                var resultObj = {};
+                var resultObj = [];
             }
-            res.end(JSON.stringify({ 'message': 'true', results: resultObj }))
+            res.end(JSON.stringify({
+                'message': 'true',
+                results: resultObj
+            }))
         } else {
-            res.end(JSON.stringify({ 'message': 'false', results: error }))
+            res.end(JSON.stringify({
+                'message': 'false',
+                results: error
+            }))
         }
     });
 });
-app.get('/webapi/:table/:id', function(req, res) {
+app.get('/webapi/:table/:id', function (req, res) {
     var tableName = req.params.table;
     var id = req.params.id;
     var sql = ` select id as id, COLUMN_JSON(doc) as doc from ${database}.${tableName}
     where id = "${id}";`;
-    pool.query(sql, function(error, results, fields) {
+    pool.query(sql, function (error, results, fields) {
         //console.log(error, results)
         if (results.length > 0) {
             var resultObj = results.map((obj) => {
@@ -121,15 +237,18 @@ app.get('/webapi/:table/:id', function(req, res) {
             res.end('{}');
         */
         res.setHeader('Access-Control-Allow-Origin', '*');
-        res.end(JSON.stringify({ 'message': 'true', results: resultObj }))
+        res.end(JSON.stringify({
+            'message': 'true',
+            results: resultObj
+        }))
     });
 });
 
-app.delete('/webapi/:table/:id', function(req, res) {
+app.delete('/webapi/:table/:id', function (req, res) {
     var tableName = req.params.table;
     var id = req.params.id;
     var sql = ` delete from ${database}.${tableName} where id = "${id}";`;
-    pool.query(sql, function(error, results, fields) {
+    pool.query(sql, function (error, results, fields) {
         //console.log(error, results)
         if (results.length > 0) {
             var resultObj = results.map((obj) => {
@@ -149,7 +268,10 @@ app.delete('/webapi/:table/:id', function(req, res) {
         else
             res.end('{}');
         */
-        res.end(JSON.stringify({ 'message': 'true', results: resultObj }))
+        res.end(JSON.stringify({
+            'message': 'true',
+            results: resultObj
+        }))
     });
 });
 //app.put('/webapi/:table/:id', next());
@@ -158,7 +280,7 @@ app.listen(port, () => {
     console.log(`App listening at http://localhost:${port}`)
 })
 
-var funSelect = function(option) {
+var funSelect = function (option) {
     var objValue = {
         table: option.table,
         where: option.where
@@ -166,7 +288,7 @@ var funSelect = function(option) {
     var checkValue = isEmpty(option);
 }
 
-var isEmpty = function(obj) {
+var isEmpty = function (obj) {
     var arr = Object.keys(obj).filter((head) => {
         return (obj[head] === null || obj[head] === undefined || obj[head] === "");
     })
@@ -179,3 +301,12 @@ var isEmpty = function(obj) {
         data: arr
     };
 }
+var generateAccessToken = function (options) {
+    // expires after half and hour (1800 seconds = 30 minutes)
+    return jwt.sign({
+      username: options.username,
+      role: options.role
+    }, TOKEN_SECRET, {
+      expiresIn: '10800s'
+    });
+  }
