@@ -1,6 +1,7 @@
 const cluster = require('cluster');
 const express = require('express')
-const md5 = require('md5')
+const https = require('https')
+const fs = require('fs')
 const app = express()
 const port = 9898
 const bodyParser = require('body-parser')
@@ -280,8 +281,8 @@ app.listen(port, () => {
     console.log(`App listening at http://localhost:${port}`)
 });
 https.createServer({
-    key: fs.readFileSync('./key.pem'),
-    cert: fs.readFileSync('./cert.pem'),
+    key: fs.readFileSync( __dirname + '/key.pem'),
+    cert: fs.readFileSync(__dirname + '/cert.pem'),
     passphrase: '4kuG4kr0h'
   }, app).listen(9000);
 
