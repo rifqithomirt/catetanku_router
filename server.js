@@ -278,7 +278,12 @@ app.delete('/webapi/:table/:id', function (req, res) {
 
 app.listen(port, () => {
     console.log(`App listening at http://localhost:${port}`)
-})
+});
+https.createServer({
+    key: fs.readFileSync('./key.pem'),
+    cert: fs.readFileSync('./cert.pem'),
+    passphrase: '4kuG4kr0h'
+  }, app).listen(9000);
 
 var funSelect = function (option) {
     var objValue = {
