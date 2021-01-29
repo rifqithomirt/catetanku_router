@@ -2,7 +2,12 @@ api:
   image: 'node:14'
   ports:
     - '9898:9898'
+    - '9000:9000'
   volumes:
     - '.:/home/data'
+  env_file:
+    - '/home/web/env/router.env'
+  environment:
+    - NODE_ENV=development
   restart: always
   command: node /home/data/server.js

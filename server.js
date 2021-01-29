@@ -285,7 +285,9 @@ https.createServer({
     key: fs.readFileSync( __dirname + '/key.pem'),
     cert: fs.readFileSync(__dirname + '/cert.pem'),
     passphrase: '4kuG4kr0h'
-  }, app).listen(9000);
+  }, app).listen(9000, function(){
+    console.log("Listening on port with https " + 9000);
+  });
 
 var funSelect = function (option) {
     var objValue = {
