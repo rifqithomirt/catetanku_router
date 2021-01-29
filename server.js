@@ -32,6 +32,8 @@ var account = {
     password: process.env.DATABASEPASSWORD || '123456'
 };
 
+console.log(account)
+
 var mysql = require('mysql');
 var pool = mysql.createPool(account);
 
