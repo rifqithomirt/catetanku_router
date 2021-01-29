@@ -14,21 +14,22 @@ const jwt = require('jsonwebtoken')
 const TOKEN_SECRET = "XXXXXXC4tetanku"
 
 app.use(cors())
+app.options('*', cors())
 app.use(bodyParser.json())
 app.use(bodyParser.urlencoded({
     extended: true
 }))
 
 
-const host = 'localhost'
-const database = 'catetanku'
+const host = process.env.HOST || 'localhost'
+const database = process.env.DATABASENAME || 'catetanku'
 var account = {
     connectionLimit: 50,
     host: host,
-    port: 3306,
+    port: process.env.DATABASEPORT || 3306,
     database: database,
-    user: 'root',
-    password: '123456'
+    user: process.env.DATABASEUSER || 'root',
+    password: process.env.DATABASEPASSWORD || '123456'
 };
 
 var mysql = require('mysql');
